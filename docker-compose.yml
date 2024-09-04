@@ -2,22 +2,31 @@ version: '3.8'
 
 services:
   frontend:
-    build: ./fibonacci-app
+    build:
+      context: ./fibonacci-app
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:3001
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:3001}
+    volumes:
+      - ./fibonacci-app/src:/app/src
+      - ./fibonacci-app/public:/app/public
     depends_on:
       - backend
 
   backend:
-    build: ./fibonacci-server
+    build:
+      context: ./fibonacci-server
+      dockerfile: Dockerfile
     ports:
       - "3001:3001"
     environment:
-      - PORT=3001
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://user:password@postgres:5432/fibonaccidb
+      - PORT=${BACKEND_PORT:-3001}
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./fibonacci-server/src:/app/src
     depends_on:
       - redis
       - postgres
@@ -28,9 +37,9 @@ services:
   postgres:
     image: postgres:13
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=fibonaccidb
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
