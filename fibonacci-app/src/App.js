@@ -7,7 +7,9 @@ const FibonacciApp = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
 
+  // Fonction pour récupérer l'historique des calculs
   const fetchHistory = async () => {
     try {
       const response = await fetch(`${API_URL}/api/fibonacci/history`);
@@ -25,30 +27,39 @@ const FibonacciApp = () => {
     fetchHistory();
   }, []);
 
+  const fetchFibonacci = async (index) => {
+    try {
+      console.log(`Envoi de la requête à ${API_URL}/api/fibonacci/${index}`);
+      const response = await fetch(`${API_URL}/api/fibonacci/${index}`);
+      const data = await response.json();
+
+      if (data.result) {
+        setResult(data.result);
+        setLoading(false);
+
+        // Rafraîchir l'historique après le calcul
+        fetchHistory();
+      } else if (data.message === "Calcul en cours") {
+        console.log('Calcul en cours, réessayer dans 2 secondes...');
+        setTimeout(() => fetchFibonacci(index), 2000);  // Réessaye dans 2 secondes
+      } else {
+        setError("Résultat non disponible");
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération du résultat:', error);
+      setError(error.message);
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setResult(null);
+    setLoading(true);
 
-    try {
-      console.log(`Envoi de la requête à ${API_URL}/api/fibonacci/${index}`);
-      const response = await fetch(`${API_URL}/api/fibonacci/${index}`);
-      console.log('Statut de la réponse:', response.status);
-
-      const text = await response.text();
-      console.log('Texte de la réponse:', text);
-
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
-      }
-
-      const data = JSON.parse(text);
-      setResult(data.result);
-      fetchHistory(); // Mise à jour de l'historique après un nouveau calcul
-    } catch (error) {
-      console.error('Erreur lors de la récupération du résultat:', error);
-      setError(error.message);
-    }
+    fetchFibonacci(index);
   };
 
   return (
@@ -61,9 +72,10 @@ const FibonacciApp = () => {
               onChange={(e) => setIndex(e.target.value)}
               placeholder="Entrez l'index"
               className="border p-2 mr-2"
+              disabled={loading}
           />
-          <button type="submit" className="bg-blue-500 text-white p-2 rounded">
-            Calculer
+          <button type="submit" className="bg-blue-500 text-white p-2 rounded" disabled={loading}>
+            {loading ? 'Calcul en cours...' : 'Calculer'}
           </button>
         </form>
         {result !== null && (

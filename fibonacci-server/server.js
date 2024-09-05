@@ -45,18 +45,6 @@ async function initDatabase() {
     }
 }
 
-// Fonction pour calculer Fibonacci
-function calculateFibonacci(n) {
-    if (n <= 1) return n;
-    let a = 0, b = 1;
-    for (let i = 2; i <= n; i++) {
-        let c = a + b;
-        a = b;
-        b = c;
-    }
-    return b;
-}
-
 // Routes
 app.get('/api/fibonacci/history', async (req, res) => {
     try {
@@ -78,18 +66,12 @@ app.get('/api/fibonacci/:index', async (req, res) => {
     console.log(`Requête reçue pour l'index: ${index}`);
 
     try {
-        // Connexion à Redis
-        if (!redisClient.isOpen) {
-            await redisClient.connect();
-            console.log('Connecté à Redis');
-        }
-
         // Vérifier dans Redis
-        const cachedResult = await redisClient.hGet('fibonacci', index);
-        console.log('Résultat du cache Redis:', cachedResult);
+        let result = await redisClient.hGet('fibonacci', index);
+        console.log('Résultat de Redis:', result);
 
-        if (cachedResult) {
-            return res.json({ result: cachedResult });
+        if (result) {
+            return res.json({ result });
         }
 
         // Vérifier dans PostgreSQL
@@ -97,21 +79,17 @@ app.get('/api/fibonacci/:index', async (req, res) => {
         console.log('Résultat de PostgreSQL:', pgResult.rows);
 
         if (pgResult.rows.length > 0) {
-            const result = pgResult.rows[0].result;
-            // Mettre à jour Redis
+            result = pgResult.rows[0].result;
             await redisClient.hSet('fibonacci', index, result);
             return res.json({ result });
         }
 
-        // Calculer Fibonacci
-        const result = calculateFibonacci(parseInt(index));
-        console.log(`Résultat calculé: ${result}`);
+        // Si pas de résultat, demander au worker de calculer
+        console.log('Demande de calcul au worker pour index:', index);
+        await redisClient.publish('fibonacci', index);
 
-        // Stocker dans Redis et PostgreSQL
-        await redisClient.hSet('fibonacci', index, result.toString());
-        await pool.query('INSERT INTO fibonacci (index, result) VALUES ($1, $2)', [index, result]);
-
-        res.json({ result: result.toString() });
+        // Informer le client que le calcul est en cours
+        return res.status(202).json({ message: "Calcul en cours" });
     } catch (error) {
         console.error('Erreur:', error);
         res.status(500).json({ error: 'Erreur serveur', details: error.message });

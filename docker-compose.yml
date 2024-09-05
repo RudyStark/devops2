@@ -1,17 +1,26 @@
 version: '3.8'
 
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
   frontend:
     build:
       context: ./fibonacci-app
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:3001}
+    container_name: fibonacci-frontend
     volumes:
-      - ./fibonacci-app/src:/app/src
-      - ./fibonacci-app/public:/app/public
+      - ./fibonacci-app:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=/api
     depends_on:
       - backend
 
@@ -19,20 +28,44 @@ services:
     build:
       context: ./fibonacci-server
       dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
+    container_name: fibonacci-backend
+    volumes:
+      - ./fibonacci-server:/app
+      - /app/node_modules
     environment:
       - PORT=${BACKEND_PORT:-3001}
       - REDIS_URL=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
-    volumes:
-      - ./fibonacci-server/src:/app/src
+      - NODE_ENV=development
     depends_on:
       - redis
       - postgres
 
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: fibonacci-worker
+    volumes:
+      - ./worker:/app
+      - /app/node_modules
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      - redis
+
   redis:
     image: redis:alpine
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user@test.com
+      PGADMIN_DEFAULT_PASSWORD: password
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
 
   postgres:
     image: postgres:13
